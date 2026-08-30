@@ -6,6 +6,8 @@
   const OPTIONAL_PRICE_PRESETS = [2, 15, 30, 50];
   const DEFAULT_EMOJI = "🛒";
   const DEFAULT_THEME_ID = "candy";
+  const SCAN_SOUND_DELAY_MS = 2500;
+  const SCAN_DURATION_MS = 4000;
   const SOUND_FILES = {
     scan: "assets/scan-beep.mp3",
     payment: "assets/cash-register.mp3",
@@ -261,6 +263,7 @@
     saleStartCustomerName: "",
     error: "",
     scanTimer: null,
+    scanSoundTimer: null,
     activeSaleStoreIds: new Set(),
     signaturePad: {
       drawing: false,
@@ -1663,16 +1666,24 @@
     saveData();
     ui.route = "scanning";
     ui.error = "";
-    playScanSound();
     render();
+    ui.scanSoundTimer = window.setTimeout(() => {
+      playScanSound();
+      ui.scanSoundTimer = null;
+    }, SCAN_SOUND_DELAY_MS);
     ui.scanTimer = window.setTimeout(() => {
       ui.route = "price";
       ui.scanTimer = null;
       render();
-    }, 900);
+    }, SCAN_DURATION_MS);
   }
 
   function clearScanTimer() {
+    if (ui.scanSoundTimer) {
+      window.clearTimeout(ui.scanSoundTimer);
+      ui.scanSoundTimer = null;
+    }
+
     if (ui.scanTimer) {
       window.clearTimeout(ui.scanTimer);
       ui.scanTimer = null;
