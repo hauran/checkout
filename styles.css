@@ -930,10 +930,14 @@ textarea:focus {
   text-transform: uppercase;
 }
 
-.receipt-meta strong,
 .receipt-row strong,
 .receipt-line strong {
   text-align: right;
+}
+
+.receipt-meta strong {
+  text-align: left;
+  overflow-wrap: anywhere;
 }
 
 .receipt-divider {
