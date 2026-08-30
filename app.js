@@ -2,8 +2,10 @@
   "use strict";
 
   const STORAGE_KEY = "pretendCheckoutApp.v1";
-  const DEFAULT_PRICES = [1, 2, 5, 10];
+  const DEFAULT_PRICES = [1, 5, 10, 20];
+  const OPTIONAL_PRICE_PRESETS = [2, 15, 30, 50];
   const DEFAULT_EMOJI = "🛒";
+  const DEFAULT_THEME_ID = "candy";
   const SOUND_FILES = {
     scan: "assets/scan-beep.mp3",
     payment: "assets/cash-register.mp3",
@@ -328,7 +330,7 @@
       name,
       description: String(store.description || "").trim(),
       emojiLogo: String(store.emojiLogo || DEFAULT_EMOJI).trim() || DEFAULT_EMOJI,
-      themeId: getTheme(store.themeId).id,
+      themeId: DEFAULT_THEME_ID,
       priceOptions: uniquePrices(priceOptions.length ? priceOptions : DEFAULT_PRICES),
     };
   }
@@ -389,9 +391,9 @@
     return data.salesByStoreId[store.id];
   }
 
-  function getTheme(themeId) {
+  function getTheme() {
     return (
-      STORE_THEMES.find((theme) => theme.id === themeId) ||
+      STORE_THEMES.find((theme) => theme.id === DEFAULT_THEME_ID) ||
       STORE_THEMES[0]
     );
   }
@@ -557,24 +559,13 @@
               </div>
               <div class="emoji-count" data-emoji-count>${renderEmojiCountText()}</div>
             </div>
-            <div class="theme-field">
-              <label>Color theme</label>
-              <div class="theme-picker" role="radiogroup" aria-label="Store color theme">
-                ${renderThemeChoices(draft.themeId)}
-              </div>
-            </div>
             <div class="price-editor">
               <label>Price buttons</label>
-              <div class="price-chips">
-                ${draft.priceOptions
-                  .map(
-                    (price, index) => `
-                      <button class="price-chip" type="button" data-action="remove-price" data-price-index="${index}" aria-label="Remove ${formatMoney(
-                        price
-                      )}">${formatMoney(price)} ×</button>
-                    `
-                  )
-                  .join("")}
+              <div class="price-chips selected-prices">
+                ${renderSelectedPriceButtons(draft.priceOptions)}
+              </div>
+              <div class="price-chips optional-prices">
+                ${renderOptionalPriceButtons(draft.priceOptions)}
               </div>
               <div class="inline-form">
                 <input name="newPrice" type="number" min="0.01" step="0.01" inputmode="decimal" enterkeyhint="done" placeholder="0.00" />
@@ -936,18 +927,13 @@
       return;
     }
 
-    if (action === "remove-price") {
-      removeDraftPrice(Number(button.dataset.priceIndex));
+    if (action === "toggle-price") {
+      toggleDraftPrice(button.dataset.price);
       return;
     }
 
     if (action === "select-emoji") {
       selectDraftEmoji(button.dataset.emoji);
-      return;
-    }
-
-    if (action === "select-theme") {
-      selectDraftTheme(button.dataset.themeId);
       return;
     }
 
@@ -1108,28 +1094,38 @@
     return `${count.toLocaleString("en-US")} ${count === 1 ? "emoji" : "emojis"}`;
   }
 
-  function renderThemeChoices(selectedThemeId) {
-    return STORE_THEMES.map((theme) => {
-      const isSelected = theme.id === getTheme(selectedThemeId).id;
+  function renderSelectedPriceButtons(priceOptions) {
+    return uniquePrices(priceOptions.length ? priceOptions : DEFAULT_PRICES)
+      .map((price) => renderPriceSetupButton(price, true))
+      .join("");
+  }
 
-      return `
-        <button
-          class="theme-choice ${isSelected ? "active" : ""}"
-          type="button"
-          data-action="select-theme"
-          data-theme-id="${escapeHtml(theme.id)}"
-          aria-checked="${isSelected ? "true" : "false"}"
-          role="radio"
-        >
-          <span class="theme-swatches" aria-hidden="true">
-            ${theme.swatches
-              .map((color) => `<span style="background: ${color}"></span>`)
-              .join("")}
-          </span>
-          <span class="theme-name">${escapeHtml(theme.name)}</span>
-        </button>
-      `;
-    }).join("");
+  function renderOptionalPriceButtons(priceOptions) {
+    const selectedPrices = uniquePrices(priceOptions);
+
+    return OPTIONAL_PRICE_PRESETS.filter(
+      (price) => !selectedPrices.some((selectedPrice) => selectedPrice === price)
+    )
+      .map((price) => renderPriceSetupButton(price, false))
+      .join("");
+  }
+
+  function renderPriceSetupButton(price, isSelected) {
+    const formattedPrice = formatMoney(price);
+
+    return `
+      <button
+        class="price-chip ${isSelected ? "selected" : "optional"}"
+        type="button"
+        data-action="toggle-price"
+        data-price="${price}"
+        aria-pressed="${isSelected ? "true" : "false"}"
+        aria-label="${isSelected ? "Remove" : "Add"} ${formattedPrice}"
+      >
+        <span aria-hidden="true">${isSelected ? "✓" : "□"}</span>
+        <span>${formattedPrice}</span>
+      </button>
+    `;
   }
 
   function updateEmojiPicker() {
@@ -1295,17 +1291,6 @@
     renderStoreForm();
   }
 
-  function selectDraftTheme(themeId) {
-    if (!ui.draftStore) {
-      return;
-    }
-
-    syncDraftFromForm();
-    ui.draftStore.themeId = getTheme(themeId).id;
-    ui.error = "";
-    renderStoreForm();
-  }
-
   function beginDraftStore(storeId, options = {}) {
     const store = data.stores.find((candidate) => candidate.id === storeId);
 
@@ -1317,7 +1302,7 @@
           name: store.name,
           description: store.description,
           emojiLogo: store.emojiLogo,
-          themeId: getTheme(store.themeId).id,
+          themeId: DEFAULT_THEME_ID,
           priceOptions: [...store.priceOptions],
         }
       : {
@@ -1325,7 +1310,7 @@
           name: "",
           description: "",
           emojiLogo: DEFAULT_EMOJI,
-          themeId: STORE_THEMES[0].id,
+          themeId: DEFAULT_THEME_ID,
           priceOptions: [...DEFAULT_PRICES],
         };
     ui.error = "";
@@ -1369,14 +1354,29 @@
     renderStoreForm();
   }
 
-  function removeDraftPrice(index) {
+  function toggleDraftPrice(rawPrice) {
     syncDraftFromForm();
-    ui.draftStore.priceOptions = ui.draftStore.priceOptions.filter(
-      (_price, priceIndex) => priceIndex !== index
+    const price = roundMoney(rawPrice || 0);
+    const hasPrice = ui.draftStore.priceOptions.some(
+      (priceOption) => roundMoney(priceOption) === price
     );
-    ui.error = ui.draftStore.priceOptions.length
-      ? ""
-      : "Add at least one price button.";
+
+    if (!price) {
+      return;
+    }
+
+    if (hasPrice && ui.draftStore.priceOptions.length === 1) {
+      ui.error = "Keep at least one price button.";
+      renderStoreForm();
+      return;
+    }
+
+    ui.draftStore.priceOptions = hasPrice
+      ? ui.draftStore.priceOptions.filter(
+          (priceOption) => roundMoney(priceOption) !== price
+        )
+      : uniquePrices([...ui.draftStore.priceOptions, price]);
+    ui.error = "";
     renderStoreForm();
   }
 
@@ -1401,7 +1401,7 @@
       name: draft.name,
       description: draft.description,
       emojiLogo: draft.emojiLogo || DEFAULT_EMOJI,
-      themeId: getTheme(draft.themeId).id,
+      themeId: DEFAULT_THEME_ID,
       priceOptions: uniquePrices(draft.priceOptions),
     };
 

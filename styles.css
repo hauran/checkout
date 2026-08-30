@@ -422,56 +422,6 @@ textarea:focus {
   place-items: center;
 }
 
-.theme-field {
-  display: grid;
-  gap: 10px;
-}
-
-.theme-picker {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-}
-
-.theme-choice {
-  display: grid;
-  gap: 8px;
-  align-content: center;
-  min-height: 70px;
-  padding: 9px;
-  border: 2px solid #d2c7b5;
-  border-radius: 8px;
-  background: #fff;
-  color: var(--ink);
-  cursor: pointer;
-  font-weight: 900;
-}
-
-.theme-choice.active {
-  border-color: var(--teal);
-  background: #d9f1e8;
-  box-shadow: 0 0 0 3px rgba(4, 117, 111, 0.15);
-}
-
-.theme-swatches {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 4px;
-}
-
-.theme-swatches span {
-  display: block;
-  height: 18px;
-  border: 1px solid rgba(32, 33, 36, 0.18);
-  border-radius: 999px;
-}
-
-.theme-name {
-  font-size: 0.9rem;
-  line-height: 1.1;
-  text-align: center;
-}
-
 .price-editor {
   display: grid;
   gap: 10px;
@@ -484,6 +434,10 @@ textarea:focus {
 }
 
 .price-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
   min-width: 0;
   min-height: 42px;
   padding: 0 4px;
@@ -496,6 +450,22 @@ textarea:focus {
   font-weight: 800;
   line-height: 1;
   white-space: nowrap;
+}
+
+.price-chip.selected {
+  border-color: var(--green);
+  background: var(--green);
+  color: #fff;
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.1);
+}
+
+.price-chip.optional {
+  background: #fff;
+  color: var(--muted);
+}
+
+.optional-prices {
+  margin-top: -4px;
 }
 
 .inline-form {
