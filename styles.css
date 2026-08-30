@@ -983,6 +983,24 @@ textarea:focus {
 
 .receipt-actions {
   display: grid;
+  gap: 8px;
+  justify-items: center;
+}
+
+.receipt-actions .primary-button {
+  width: 100%;
+}
+
+.receipt-delete-link {
+  min-height: 34px;
+  padding: 0 6px;
+  border: 0;
+  background: transparent;
+  color: #9f2a15;
+  cursor: pointer;
+  font-size: 0.86rem;
+  font-weight: 900;
+  text-decoration: underline;
 }
 
 @media (min-width: 521px) {

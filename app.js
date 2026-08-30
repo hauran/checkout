@@ -1057,12 +1057,14 @@
   function renderApproved() {
     const sale = currentSale();
     const store = currentStore();
+    const receiptId = ui.selectedReceiptId || findReceiptIdForSale(store, sale);
 
     app.innerHTML = `
       <main class="screen receipt-screen">
         ${renderReceiptPaper(sale, store)}
         <div class="receipt-actions">
           <button class="primary-button" type="button" data-action="new-sale">New Sale</button>
+          ${renderReceiptDeleteLink(receiptId)}
         </div>
       </main>
     `;
@@ -1084,9 +1086,25 @@
         <header class="topbar">
           <button class="text-button" type="button" data-action="back-register">Back</button>
           <h1>Receipt</h1>
+          ${renderReceiptDeleteLink(receipt.id)}
         </header>
         ${renderReceiptPaper(receipt, store)}
       </main>
+    `;
+  }
+
+  function renderReceiptDeleteLink(receiptId) {
+    if (!receiptId) {
+      return "";
+    }
+
+    return `
+      <button
+        class="receipt-delete-link"
+        type="button"
+        data-action="delete-receipt"
+        data-receipt-id="${escapeHtml(receiptId)}"
+      >Delete</button>
     `;
   }
 
@@ -1253,6 +1271,11 @@
 
     if (action === "open-receipt") {
       openReceipt(button.dataset.receiptId);
+      return;
+    }
+
+    if (action === "delete-receipt") {
+      deleteReceipt(button.dataset.receiptId);
       return;
     }
 
@@ -1835,6 +1858,40 @@
     render();
   }
 
+  function deleteReceipt(receiptId) {
+    const store = currentStore();
+    const receipt = findCurrentReceipt(receiptId);
+    if (!store || !receipt) {
+      ui.selectedReceiptId = "";
+      ui.route = "register";
+      render();
+      return;
+    }
+
+    if (!window.confirm("Delete this receipt?")) {
+      return;
+    }
+
+    data.receiptsByStoreId[store.id] = currentReceiptHistory(store).filter(
+      (candidate) => candidate.id !== receipt.id
+    );
+
+    const sale = currentSale();
+    if (
+      sale.paid &&
+      sale.receiptNumber === receipt.receiptNumber &&
+      sale.paidAt === receipt.paidAt
+    ) {
+      data.salesByStoreId[store.id] = normalizeSale(null);
+    }
+
+    saveData();
+    ui.selectedReceiptId = "";
+    ui.route = "register";
+    ui.error = "";
+    render();
+  }
+
   function startScan() {
     clearScanTimer();
     const store = currentStore();
@@ -2001,7 +2058,8 @@
     sale.receiptNumber = sale.receiptNumber || makeReceiptNumber();
     sale.paidAt = new Date().toISOString();
     if (store) {
-      addReceiptToHistory(store, sale);
+      const receipt = addReceiptToHistory(store, sale);
+      ui.selectedReceiptId = receipt?.id || "";
       ui.activeSaleStoreIds.delete(store.id);
     }
     saveData();
@@ -2148,6 +2206,19 @@
       tip: tipCents / 100,
       total: (subtotalCents + tipCents) / 100,
     };
+  }
+
+  function findReceiptIdForSale(store, sale) {
+    if (!store || !sale?.receiptNumber || !sale?.paidAt) {
+      return "";
+    }
+
+    const receipt = currentReceiptHistory(store).find(
+      (candidate) =>
+        candidate.receiptNumber === sale.receiptNumber &&
+        candidate.paidAt === sale.paidAt
+    );
+    return receipt?.id || "";
   }
 
   function playScanSound() {
