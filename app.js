@@ -527,8 +527,8 @@
               draft.emojiLogo || DEFAULT_EMOJI
             )}</div>
             <div>
-              <h1>${isEditing ? "Edit Store" : "New Store"}</h1>
-              <p class="muted">${isEditing ? "Store details" : "First store setup"}</p>
+              <h1>${isEditing ? "Edit Store" : "Create New Store"}</h1>
+              ${isEditing ? `<p class="muted">Store details</p>` : ""}
             </div>
           </div>
           <form class="form-grid" data-form="store">
