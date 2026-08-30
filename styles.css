@@ -184,6 +184,11 @@ button:disabled {
   font-size: 1.45rem;
 }
 
+.setup-title {
+  font-size: 1.75rem;
+  white-space: nowrap;
+}
+
 .muted,
 .brand-card p,
 .store-card p {
@@ -408,7 +413,6 @@ textarea:focus {
   box-shadow: 0 0 0 3px rgba(4, 117, 111, 0.15);
 }
 
-.emoji-count,
 .emoji-empty {
   color: var(--muted);
   font-size: 0.86rem;
@@ -752,5 +756,39 @@ textarea:focus {
     left: 50%;
     width: 520px;
     transform: translateX(-50%);
+  }
+}
+
+@media (max-width: 430px) {
+  .emoji-preview-row {
+    grid-template-columns: 76px 1fr;
+    align-items: center;
+  }
+
+  .emoji-preview-row .logo-mark {
+    width: 76px;
+    height: 76px;
+    font-size: 2.15rem;
+  }
+
+  .setup-title {
+    font-size: 1.45rem;
+  }
+}
+
+@media (max-width: 360px) {
+  .emoji-preview-row {
+    grid-template-columns: 64px 1fr;
+    gap: 10px;
+  }
+
+  .emoji-preview-row .logo-mark {
+    width: 64px;
+    height: 64px;
+    font-size: 1.9rem;
+  }
+
+  .setup-title {
+    font-size: 1.2rem;
   }
 }

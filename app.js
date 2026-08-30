@@ -307,7 +307,6 @@
       stores,
       activeStoreId,
       salesByStoreId,
-      soundEnabled: parsed?.soundEnabled !== false,
     };
   }
 
@@ -348,6 +347,7 @@
     return {
       items,
       customerName: String(sale?.customerName || "").trim(),
+      started: sale?.started === true || items.length > 0,
       tip: roundMoney(sale?.tip || 0),
       paid: sale?.paid === true,
       paymentType: typeof sale?.paymentType === "string" ? sale.paymentType : "",
@@ -469,9 +469,6 @@
       <main class="screen">
         <header class="topbar">
           <h1>${hasMultipleStores ? "Choose Store" : "Store"}</h1>
-          <button class="icon-button" type="button" data-action="toggle-sound" aria-label="${
-            data.soundEnabled ? "Sound on" : "Sound off"
-          }">${data.soundEnabled ? "🔊" : "🔇"}</button>
         </header>
         <section class="store-grid">
           ${data.stores.map(renderStoreCard).join("")}
@@ -527,7 +524,7 @@
               draft.emojiLogo || DEFAULT_EMOJI
             )}</div>
             <div>
-              <h1>${isEditing ? "Edit Store" : "Create New Store"}</h1>
+              <h1 class="setup-title">${isEditing ? "Edit Store" : "Create New Store"}</h1>
               ${isEditing ? `<p class="muted">Store details</p>` : ""}
             </div>
           </div>
@@ -557,10 +554,9 @@
               <div class="emoji-picker" role="radiogroup" aria-label="Store logo">
                 ${renderEmojiChoices(draft.emojiLogo)}
               </div>
-              <div class="emoji-count" data-emoji-count>${renderEmojiCountText()}</div>
             </div>
             <div class="price-editor">
-              <label>Price buttons</label>
+              <label>Price Options</label>
               <div class="price-chips selected-prices">
                 ${renderSelectedPriceButtons(draft.priceOptions)}
               </div>
@@ -603,14 +599,13 @@
 
     const sale = currentSale();
     const totals = calculateTotals(sale);
+    const canScan = sale.started && !sale.paid;
+    const canCheckout = canScan && sale.items.length > 0;
 
     app.innerHTML = `
       <main class="screen with-actions">
         <header class="topbar">
           <button class="text-button" type="button" data-action="open-stores">Stores</button>
-          <button class="icon-button" type="button" data-action="toggle-sound" aria-label="${
-            data.soundEnabled ? "Sound on" : "Sound off"
-          }">${data.soundEnabled ? "🔊" : "🔇"}</button>
         </header>
         <section class="brand-card">
           <div class="logo-mark" aria-hidden="true">${escapeHtml(store.emojiLogo)}</div>
@@ -634,16 +629,22 @@
           ${
             sale.items.length
               ? sale.items.map(renderCartRow).join("")
-              : `<div class="empty-state"><div><strong>Ready</strong><span>Start a new sale</span></div></div>`
+              : `<div class="empty-state"><div><strong>${
+                  sale.started ? "Ready" : "No sale started"
+                }</strong><span>${
+                  sale.started ? "Scan the first item" : "Start a new sale"
+                }</span></div></div>`
           }
         </section>
       </main>
       <nav class="bottom-actions" aria-label="Sale actions">
         <div class="bottom-actions-inner">
           <button class="secondary-button" type="button" data-action="new-sale">New Sale</button>
-          <button class="primary-button" type="button" data-action="scan-item">Scan Item</button>
+          <button class="primary-button" type="button" data-action="scan-item" ${
+            canScan ? "" : "disabled"
+          }>Scan Item</button>
           <button class="secondary-button" type="button" data-action="checkout" ${
-            sale.items.length ? "" : "disabled"
+            canCheckout ? "" : "disabled"
           }>Checkout</button>
         </div>
       </nav>
@@ -870,19 +871,6 @@
 
     const action = button.dataset.action;
 
-    if (action === "toggle-sound") {
-      data.soundEnabled = !data.soundEnabled;
-      saveData();
-      if (data.soundEnabled) {
-        playSoundEffect("scan", [
-          { frequency: 740, delay: 0, duration: 0.05, gain: 0.04 },
-          { frequency: 920, delay: 0.06, duration: 0.05, gain: 0.04 },
-        ]);
-      }
-      render();
-      return;
-    }
-
     if (action === "open-stores") {
       clearScanTimer();
       ui.route = "store-picker";
@@ -968,6 +956,14 @@
     }
 
     if (action === "checkout") {
+      const sale = currentSale();
+      if (!sale.started || !sale.items.length) {
+        ui.route = "register";
+        ui.error = "";
+        render();
+        return;
+      }
+
       ui.route = "checkout";
       ui.error = "";
       render();
@@ -1089,11 +1085,6 @@
     }).join("");
   }
 
-  function renderEmojiCountText() {
-    const count = getFilteredEmojiOptions().length;
-    return `${count.toLocaleString("en-US")} ${count === 1 ? "emoji" : "emojis"}`;
-  }
-
   function renderSelectedPriceButtons(priceOptions) {
     return uniquePrices(priceOptions.length ? priceOptions : DEFAULT_PRICES)
       .map((price) => renderPriceSetupButton(price, true))
@@ -1130,14 +1121,9 @@
 
   function updateEmojiPicker() {
     const picker = app.querySelector(".emoji-picker");
-    const count = app.querySelector("[data-emoji-count]");
 
     if (picker) {
       picker.innerHTML = renderEmojiChoices(ui.draftStore?.emojiLogo || DEFAULT_EMOJI);
-    }
-
-    if (count) {
-      count.textContent = renderEmojiCountText();
     }
   }
 
@@ -1470,6 +1456,7 @@
 
     data.salesByStoreId[store.id] = normalizeSale({
       customerName: String(customerName || "").trim(),
+      started: true,
     });
     saveData();
     ui.route = "register";
@@ -1480,8 +1467,13 @@
 
   function startScan() {
     clearScanTimer();
-    currentSale().paid = false;
-    currentSale().paymentType = "";
+    const sale = currentSale();
+    if (!sale.started || sale.paid) {
+      beginSaleStart();
+      return;
+    }
+
+    sale.paymentType = "";
     saveData();
     ui.route = "scanning";
     ui.error = "";
@@ -1509,6 +1501,7 @@
     }
 
     const sale = currentSale();
+    sale.started = true;
     sale.items.push({ id: makeId(), price });
     sale.paid = false;
     sale.paymentType = "";
@@ -1550,6 +1543,12 @@
     }
 
     const sale = currentSale();
+    if (!sale.started || !sale.items.length) {
+      ui.route = "register";
+      render();
+      return;
+    }
+
     sale.paid = true;
     sale.paymentType = paymentType;
     saveData();
@@ -1612,10 +1611,6 @@
   }
 
   function primeAudio() {
-    if (!data.soundEnabled) {
-      return;
-    }
-
     preloadSoundPlayers();
 
     const context = getAudioContext();
@@ -1649,10 +1644,6 @@
   }
 
   function playSoundEffect(name, fallbackNotes) {
-    if (!data.soundEnabled) {
-      return;
-    }
-
     const player = getSoundPlayer(name);
     if (!player) {
       playToneSequence(fallbackNotes);
@@ -1675,10 +1666,6 @@
   }
 
   function playToneSequence(notes) {
-    if (!data.soundEnabled) {
-      return;
-    }
-
     const context = getAudioContext();
     if (!context) {
       return;
