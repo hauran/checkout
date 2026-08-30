@@ -801,10 +801,28 @@ textarea:focus {
   touch-action: none;
 }
 
+.signature-clear-button {
+  justify-self: start;
+  min-height: 38px;
+  margin-top: -6px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 8px;
+  background: #efe8d9;
+  color: var(--ink);
+  cursor: pointer;
+  font-size: 0.86rem;
+  font-weight: 900;
+}
+
 .signature-actions {
   display: grid;
-  grid-template-columns: 0.85fr 1.15fr;
-  gap: 10px;
+}
+
+.signature-actions .primary-button {
+  width: 100%;
+  min-height: 58px;
+  font-size: 1.05rem;
 }
 
 .fake-badge {

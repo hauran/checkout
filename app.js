@@ -1042,16 +1042,20 @@
             </div>
           </div>
           <canvas class="signature-pad" data-signature-pad aria-label="Customer signature"></canvas>
+          <button
+            class="signature-clear-button"
+            type="button"
+            data-action="clear-signature"
+          >Clear Signature</button>
           <div class="error-message" role="alert">${escapeHtml(ui.error)}</div>
           <div class="signature-actions">
-            <button class="secondary-button" type="button" data-action="clear-signature">Clear</button>
             <button
               class="primary-button"
               type="button"
               data-action="accept-signature"
               data-accept-signature
               disabled
-            >Done</button>
+            >Complete Purchase</button>
           </div>
         </section>
       </main>
@@ -2007,7 +2011,6 @@
     sale.receiptNumber = "";
     sale.paidAt = "";
     saveData();
-    playPaymentSound();
     ui.error = "";
     ui.route = "signature";
     render();
@@ -2072,6 +2075,7 @@
       ui.activeSaleStoreIds.delete(store.id);
     }
     saveData();
+    playPaymentSound();
     ui.error = "";
     ui.route = "approved";
     render();
