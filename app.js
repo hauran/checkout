@@ -6,8 +6,8 @@
   const OPTIONAL_PRICE_PRESETS = [2, 15, 30, 50];
   const DEFAULT_EMOJI = "🛒";
   const DEFAULT_THEME_ID = "candy";
-  const SCAN_SOUND_DELAY_MS = 1500;
-  const SCAN_DURATION_MS = 3000;
+  const SCAN_SOUND_DELAY_MS = 1000;
+  const SCAN_DURATION_MS = 2500;
   const RECEIPT_HISTORY_LIMIT = 50;
   const SOUND_FILES = {
     scan: "assets/scan-beep.mp3",
@@ -378,6 +378,7 @@
     return {
       items,
       customerName: String(sale?.customerName || "").trim(),
+      discount: roundMoney(sale?.discount || 0),
       tip: roundMoney(sale?.tip || 0),
       paid: sale?.paid === true,
       paymentType: typeof sale?.paymentType === "string" ? sale.paymentType : "",
@@ -972,6 +973,19 @@
               <span>Subtotal</span>
               <strong>${formatMoney(totals.subtotal)}</strong>
             </div>
+            <label class="total-input-line">
+              <span>Discount</span>
+              <input
+                data-discount-input
+                type="number"
+                min="0"
+                max="${totals.subtotal}"
+                step="0.01"
+                inputmode="decimal"
+                value="${sale.discount ? sale.discount : ""}"
+                placeholder="0.00"
+              />
+            </label>
             <div class="total-line">
               <span>Tip</span>
               <strong data-tip-display>${formatMoney(sale.tip)}</strong>
@@ -1163,6 +1177,14 @@
             <span>Subtotal</span>
             <strong>${formatMoney(totals.subtotal)}</strong>
           </div>
+          ${
+            totals.discount
+              ? `<div class="receipt-line">
+                  <span>Discount</span>
+                  <strong>-${formatMoney(totals.discount)}</strong>
+                </div>`
+              : ""
+          }
           <div class="receipt-line">
             <span>Tip</span>
             <strong>${formatMoney(totals.tip)}</strong>
@@ -1415,6 +1437,16 @@
     if (event.target.matches("[data-tip-input]")) {
       const sale = currentSale();
       sale.tip = roundMoney(event.target.value);
+      sale.paid = false;
+      sale.paymentType = "";
+      saveData();
+      updateCheckoutTotals();
+      return;
+    }
+
+    if (event.target.matches("[data-discount-input]")) {
+      const sale = currentSale();
+      sale.discount = roundMoney(event.target.value);
       sale.paid = false;
       sale.paymentType = "";
       saveData();
@@ -1976,6 +2008,7 @@
 
   function setTip(tip) {
     syncCheckoutCustomerName();
+    syncCheckoutDiscountAmount();
     const sale = currentSale();
     sale.tip = tip;
     sale.paid = false;
@@ -1990,6 +2023,7 @@
     if (tipInput) {
       currentSale().tip = roundMoney(tipInput.value);
     }
+    syncCheckoutDiscountAmount();
 
     const sale = currentSale();
     const store = currentStore();
@@ -2201,6 +2235,15 @@
     currentSale().customerName = input.value.trim();
   }
 
+  function syncCheckoutDiscountAmount() {
+    const input = app.querySelector("[data-discount-input]");
+    if (!input) {
+      return;
+    }
+
+    currentSale().discount = roundMoney(input.value);
+  }
+
   function updateCheckoutTotals() {
     const sale = currentSale();
     const totals = calculateTotals(sale);
@@ -2221,12 +2264,14 @@
       (sum, item) => sum + moneyToCents(item.price),
       0
     );
+    const discountCents = Math.min(moneyToCents(sale.discount), subtotalCents);
     const tipCents = moneyToCents(sale.tip);
 
     return {
       subtotal: subtotalCents / 100,
+      discount: discountCents / 100,
       tip: tipCents / 100,
-      total: (subtotalCents + tipCents) / 100,
+      total: (subtotalCents - discountCents + tipCents) / 100,
     };
   }
 

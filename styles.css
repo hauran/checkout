@@ -707,6 +707,21 @@ textarea:focus {
   font-weight: 800;
 }
 
+.total-input-line {
+  display: grid;
+  grid-template-columns: 1fr minmax(118px, 42%);
+  gap: 12px;
+  align-items: center;
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.total-input-line input {
+  min-height: 46px;
+  text-align: right;
+  font-weight: 800;
+}
+
 .total-line.final {
   align-items: center;
   padding-top: 12px;
