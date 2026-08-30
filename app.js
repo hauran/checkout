@@ -261,6 +261,7 @@
     saleStartCustomerName: "",
     error: "",
     scanTimer: null,
+    activeSaleStoreIds: new Set(),
   };
   let emojiOptionsCache = null;
   let audioContext = null;
@@ -347,7 +348,6 @@
     return {
       items,
       customerName: String(sale?.customerName || "").trim(),
-      started: sale?.started === true || items.length > 0,
       tip: roundMoney(sale?.tip || 0),
       paid: sale?.paid === true,
       paymentType: typeof sale?.paymentType === "string" ? sale.paymentType : "",
@@ -389,6 +389,14 @@
     }
 
     return data.salesByStoreId[store.id];
+  }
+
+  function isSaleStarted(store, sale) {
+    if (!store || sale?.paid) {
+      return false;
+    }
+
+    return ui.activeSaleStoreIds.has(store.id) || Boolean(sale?.items.length);
   }
 
   function getTheme() {
@@ -599,7 +607,7 @@
 
     const sale = currentSale();
     const totals = calculateTotals(sale);
-    const canScan = sale.started && !sale.paid;
+    const canScan = isSaleStarted(store, sale);
     const canCheckout = canScan && sale.items.length > 0;
 
     app.innerHTML = `
@@ -630,9 +638,9 @@
             sale.items.length
               ? sale.items.map(renderCartRow).join("")
               : `<div class="empty-state"><div><strong>${
-                  sale.started ? "Ready" : "No sale started"
+                  canScan ? "Ready" : "No sale started"
                 }</strong><span>${
-                  sale.started ? "Scan the first item" : "Start a new sale"
+                  canScan ? "Scan the first item" : "Start a new sale"
                 }</span></div></div>`
           }
         </section>
@@ -956,8 +964,9 @@
     }
 
     if (action === "checkout") {
+      const store = currentStore();
       const sale = currentSale();
-      if (!sale.started || !sale.items.length) {
+      if (!isSaleStarted(store, sale) || !sale.items.length) {
         ui.route = "register";
         ui.error = "";
         render();
@@ -1456,8 +1465,8 @@
 
     data.salesByStoreId[store.id] = normalizeSale({
       customerName: String(customerName || "").trim(),
-      started: true,
     });
+    ui.activeSaleStoreIds.add(store.id);
     saveData();
     ui.route = "register";
     ui.saleStartCustomerName = "";
@@ -1467,8 +1476,9 @@
 
   function startScan() {
     clearScanTimer();
+    const store = currentStore();
     const sale = currentSale();
-    if (!sale.started || sale.paid) {
+    if (!isSaleStarted(store, sale)) {
       beginSaleStart();
       return;
     }
@@ -1501,7 +1511,10 @@
     }
 
     const sale = currentSale();
-    sale.started = true;
+    const store = currentStore();
+    if (store) {
+      ui.activeSaleStoreIds.add(store.id);
+    }
     sale.items.push({ id: makeId(), price });
     sale.paid = false;
     sale.paymentType = "";
@@ -1543,7 +1556,8 @@
     }
 
     const sale = currentSale();
-    if (!sale.started || !sale.items.length) {
+    const store = currentStore();
+    if (!isSaleStarted(store, sale) || !sale.items.length) {
       ui.route = "register";
       render();
       return;
@@ -1551,6 +1565,9 @@
 
     sale.paid = true;
     sale.paymentType = paymentType;
+    if (store) {
+      ui.activeSaleStoreIds.delete(store.id);
+    }
     saveData();
     playPaymentSound();
     ui.route = "approved";
