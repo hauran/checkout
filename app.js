@@ -646,16 +646,26 @@
         </section>
       </main>
       <nav class="bottom-actions" aria-label="Sale actions">
-        <div class="bottom-actions-inner">
-          <button class="secondary-button" type="button" data-action="new-sale">New Sale</button>
-          <button class="primary-button" type="button" data-action="scan-item" ${
-            canScan ? "" : "disabled"
-          }>Scan Item</button>
-          <button class="secondary-button" type="button" data-action="checkout" ${
-            canCheckout ? "" : "disabled"
-          }>Checkout</button>
+        <div class="bottom-actions-inner action-count-${canCheckout ? 3 : canScan ? 2 : 1}">
+          ${renderSaleActionButtons(canScan, canCheckout)}
         </div>
       </nav>
+    `;
+  }
+
+  function renderSaleActionButtons(canScan, canCheckout) {
+    if (!canScan) {
+      return `<button class="primary-button" type="button" data-action="new-sale">New Sale</button>`;
+    }
+
+    return `
+      <button class="secondary-button" type="button" data-action="new-sale">New Sale</button>
+      <button class="primary-button" type="button" data-action="scan-item">Scan Item</button>
+      ${
+        canCheckout
+          ? `<button class="secondary-button" type="button" data-action="checkout">Checkout</button>`
+          : ""
+      }
     `;
   }
 
