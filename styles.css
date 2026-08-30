@@ -706,6 +706,17 @@ textarea:focus {
   background: #000;
 }
 
+.pay-icon {
+  display: inline-flex;
+  align-items: center;
+  font-size: 1.35rem;
+  line-height: 1;
+}
+
+.apple-logo {
+  font-size: 1.45rem;
+}
+
 .fake-badge {
   display: inline-flex;
   align-items: center;

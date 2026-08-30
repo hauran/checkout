@@ -848,8 +848,14 @@
             }" placeholder="0.00" />
           </label>
           <div class="pay-grid">
-            <button class="pay-button" type="button" data-action="pay" data-payment-type="Credit Card">Credit Card</button>
-            <button class="pay-button apple" type="button" data-action="pay" data-payment-type="Apple Pay">Apple Pay</button>
+            <button class="pay-button" type="button" data-action="pay" data-payment-type="Credit Card">
+              <span class="pay-icon" aria-hidden="true">💳</span>
+              <span>Credit Card</span>
+            </button>
+            <button class="pay-button apple" type="button" data-action="pay" data-payment-type="Apple Pay">
+              <span class="pay-icon apple-logo" aria-hidden="true"></span>
+              <span>Apple Pay</span>
+            </button>
           </div>
         </section>
       </main>
