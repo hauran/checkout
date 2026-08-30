@@ -8,6 +8,7 @@
   const DEFAULT_THEME_ID = "candy";
   const SCAN_SOUND_DELAY_MS = 2500;
   const SCAN_DURATION_MS = 4000;
+  const RECEIPT_HISTORY_LIMIT = 50;
   const SOUND_FILES = {
     scan: "assets/scan-beep.mp3",
     payment: "assets/cash-register.mp3",
@@ -259,6 +260,7 @@
     route: getInitialRoute(data),
     draftStore: null,
     editingStoreId: null,
+    selectedReceiptId: "",
     emojiFilter: "",
     saleStartCustomerName: "",
     error: "",
@@ -311,10 +313,23 @@
       ? parsed.activeStoreId
       : stores[0]?.id || null;
     const salesByStoreId = {};
+    const receiptsByStoreId = {};
 
     stores.forEach((store) => {
-      salesByStoreId[store.id] = normalizeSale(
+      const currentStoreSale = normalizeSale(
         parsed?.salesByStoreId && parsed.salesByStoreId[store.id]
+      );
+      const savedReceipts = Array.isArray(
+        parsed?.receiptsByStoreId && parsed.receiptsByStoreId[store.id]
+      )
+        ? parsed.receiptsByStoreId[store.id]
+        : [];
+
+      salesByStoreId[store.id] = currentStoreSale;
+      receiptsByStoreId[store.id] = normalizeReceiptHistory(
+        currentStoreSale.paid
+          ? [currentStoreSale, ...savedReceipts]
+          : savedReceipts
       );
     });
 
@@ -322,6 +337,7 @@
       stores,
       activeStoreId,
       salesByStoreId,
+      receiptsByStoreId,
     };
   }
 
@@ -373,6 +389,43 @@
     };
   }
 
+  function normalizeReceiptHistory(receipts) {
+    const seen = new Set();
+
+    return receipts
+      .map(normalizeReceipt)
+      .filter(Boolean)
+      .filter((receipt) => {
+        const key =
+          receipt.receiptNumber && receipt.paidAt
+            ? `${receipt.receiptNumber}-${receipt.paidAt}`
+            : receipt.id;
+        if (seen.has(key)) {
+          return false;
+        }
+
+        seen.add(key);
+        return true;
+      })
+      .sort((a, b) => new Date(b.paidAt).getTime() - new Date(a.paidAt).getTime())
+      .slice(0, RECEIPT_HISTORY_LIMIT);
+  }
+
+  function normalizeReceipt(receipt) {
+    const sale = normalizeSale(receipt);
+    if (!sale.paid || !sale.items.length) {
+      return null;
+    }
+
+    return {
+      ...sale,
+      id: String(receipt?.id || receipt?.receiptId || sale.receiptNumber || makeId()),
+      paid: true,
+      receiptNumber: sale.receiptNumber || makeReceiptNumber(),
+      paidAt: sale.paidAt || new Date().toISOString(),
+    };
+  }
+
   function getInitialRoute(nextData) {
     if (nextData.stores.length === 0) {
       return "store-form";
@@ -408,6 +461,41 @@
     }
 
     return data.salesByStoreId[store.id];
+  }
+
+  function currentReceiptHistory(store = currentStore()) {
+    if (!store) {
+      return [];
+    }
+
+    data.receiptsByStoreId = data.receiptsByStoreId || {};
+    if (!Array.isArray(data.receiptsByStoreId[store.id])) {
+      data.receiptsByStoreId[store.id] = [];
+    }
+
+    return data.receiptsByStoreId[store.id];
+  }
+
+  function findCurrentReceipt(receiptId) {
+    return currentReceiptHistory().find((receipt) => receipt.id === receiptId) || null;
+  }
+
+  function addReceiptToHistory(store, sale) {
+    if (!store) {
+      return null;
+    }
+
+    const receipt = normalizeReceipt({ ...sale, id: makeId() });
+    if (!receipt) {
+      return null;
+    }
+
+    data.receiptsByStoreId = data.receiptsByStoreId || {};
+    data.receiptsByStoreId[store.id] = normalizeReceiptHistory([
+      receipt,
+      ...currentReceiptHistory(store),
+    ]);
+    return receipt;
   }
 
   function isSaleStarted(store, sale) {
@@ -489,6 +577,11 @@
 
     if (route === "approved") {
       renderApproved();
+      return;
+    }
+
+    if (route === "receipt") {
+      renderHistoryReceipt();
       return;
     }
 
@@ -630,12 +723,12 @@
     }
 
     const sale = currentSale();
-    const totals = calculateTotals(sale);
     const canScan = isSaleStarted(store, sale);
     const canCheckout = canScan && sale.items.length > 0;
+    const receipts = currentReceiptHistory(store);
 
     app.innerHTML = `
-      <main class="screen with-actions">
+      <main class="screen ${canScan ? "with-actions" : ""}">
         <header class="topbar">
           <button class="text-button" type="button" data-action="open-stores">Stores</button>
         </header>
@@ -646,42 +739,78 @@
             ${store.description ? `<p>${escapeHtml(store.description)}</p>` : ""}
           </div>
         </section>
-        ${
-          sale.customerName
-            ? `<div class="customer-strip">Customer: <strong>${escapeHtml(
-                sale.customerName
-              )}</strong></div>`
-            : ""
-        }
-        <section class="total-card" aria-live="polite">
-          <span class="total-label">Running total</span>
-          <span class="total-value">${formatMoney(totals.subtotal)}</span>
-        </section>
-        <section class="cart-list" aria-label="Cart">
-          ${
-            sale.items.length
-              ? sale.items.map(renderCartRow).join("")
-              : `<div class="empty-state"><div><strong>${
-                  canScan ? "Ready" : "No sale started"
-                }</strong><span>${
-                  canScan ? "Scan the first item" : "Start a new sale"
-                }</span></div></div>`
-          }
-        </section>
+        ${canScan ? renderActiveSaleRegister(sale) : renderStoreHome(receipts)}
       </main>
-      <nav class="bottom-actions" aria-label="Sale actions">
-        <div class="bottom-actions-inner action-count-${canCheckout ? 2 : 1}">
-          ${renderSaleActionButtons(canScan, canCheckout)}
-        </div>
-      </nav>
+      ${
+        canScan
+          ? `<nav class="bottom-actions" aria-label="Sale actions">
+              <div class="bottom-actions-inner action-count-${canCheckout ? 2 : 1}">
+                ${renderSaleActionButtons(canCheckout)}
+              </div>
+            </nav>`
+          : ""
+      }
     `;
   }
 
-  function renderSaleActionButtons(canScan, canCheckout) {
-    if (!canScan) {
-      return `<button class="primary-button" type="button" data-action="new-sale">New Sale</button>`;
-    }
+  function renderStoreHome(receipts) {
+    return `
+      <button class="primary-button store-start-button" type="button" data-action="new-sale">New Sale</button>
+      <section class="sales-history" aria-label="Past sales">
+        <h2>Past Sales</h2>
+        <div class="sales-list">
+          ${
+            receipts.length
+              ? receipts.map(renderPastSaleRow).join("")
+              : `<div class="past-sale-empty">No past sales</div>`
+          }
+        </div>
+      </section>
+    `;
+  }
 
+  function renderActiveSaleRegister(sale) {
+    return `
+      ${
+        sale.customerName
+          ? `<div class="customer-strip">Customer: <strong>${escapeHtml(
+              sale.customerName
+            )}</strong></div>`
+          : ""
+      }
+      <section class="cart-list" aria-label="Cart">
+        ${
+          sale.items.length
+            ? sale.items.map(renderCartRow).join("")
+            : `<div class="empty-state"><div><strong>Ready</strong><span>Scan the first item</span></div></div>`
+        }
+      </section>
+    `;
+  }
+
+  function renderPastSaleRow(receipt) {
+    const totals = calculateTotals(receipt);
+    const dateLabel = formatReceiptDate(receipt.paidAt);
+
+    return `
+      <button
+        class="past-sale-row"
+        type="button"
+        data-action="open-receipt"
+        data-receipt-id="${escapeHtml(receipt.id)}"
+      >
+        <span>
+          <strong>${escapeHtml(receipt.customerName || "Customer")}</strong>
+          <small>${escapeHtml(dateLabel)} · #${escapeHtml(
+            receipt.receiptNumber || "000000"
+          )}</small>
+        </span>
+        <strong>${formatMoney(totals.total)}</strong>
+      </button>
+    `;
+  }
+
+  function renderSaleActionButtons(canCheckout) {
     return `
       <button class="primary-button" type="button" data-action="scan-item">Scan Item</button>
       ${
@@ -928,79 +1057,108 @@
   function renderApproved() {
     const sale = currentSale();
     const store = currentStore();
+
+    app.innerHTML = `
+      <main class="screen receipt-screen">
+        ${renderReceiptPaper(sale, store)}
+        <div class="receipt-actions">
+          <button class="primary-button" type="button" data-action="new-sale">New Sale</button>
+        </div>
+      </main>
+    `;
+  }
+
+  function renderHistoryReceipt() {
+    const store = currentStore();
+    const receipt = findCurrentReceipt(ui.selectedReceiptId);
+
+    if (!store || !receipt) {
+      ui.route = "register";
+      ui.selectedReceiptId = "";
+      render();
+      return;
+    }
+
+    app.innerHTML = `
+      <main class="screen receipt-screen">
+        <header class="topbar">
+          <button class="text-button" type="button" data-action="back-register">Back</button>
+          <h1>Receipt</h1>
+        </header>
+        ${renderReceiptPaper(receipt, store)}
+      </main>
+    `;
+  }
+
+  function renderReceiptPaper(sale, store) {
     const totals = calculateTotals(sale);
     const paymentType = sale.paymentType || "Payment";
     const receiptNumber = sale.receiptNumber || "000000";
     const paidAt = sale.paidAt || new Date().toISOString();
 
-    app.innerHTML = `
-      <main class="screen receipt-screen">
-        <section class="receipt-paper" aria-label="Receipt">
-          <div class="receipt-top">
-            <div class="receipt-logo" aria-hidden="true">${escapeHtml(
-              store?.emojiLogo || DEFAULT_EMOJI
-            )}</div>
-            <h1>${escapeHtml(store?.name || "Checkout")}</h1>
-            ${store?.description ? `<p>${escapeHtml(store.description)}</p>` : ""}
-          </div>
+    return `
+      <section class="receipt-paper" aria-label="Receipt">
+        <div class="receipt-top">
+          <div class="receipt-logo" aria-hidden="true">${escapeHtml(
+            store?.emojiLogo || DEFAULT_EMOJI
+          )}</div>
+          <h1>${escapeHtml(store?.name || "Checkout")}</h1>
+          ${store?.description ? `<p>${escapeHtml(store.description)}</p>` : ""}
+        </div>
 
-          <div class="receipt-meta">
-            <div>
-              <span>Receipt</span>
-              <strong>#${escapeHtml(receiptNumber)}</strong>
-            </div>
-            <div>
-              <span>Date</span>
-              <strong>${escapeHtml(formatReceiptDate(paidAt))}</strong>
-            </div>
-            <div>
-              <span>Customer</span>
-              <strong>${escapeHtml(sale.customerName || "Customer")}</strong>
-            </div>
-            <div>
-              <span>Payment</span>
-              <strong>${escapeHtml(paymentType)}</strong>
-            </div>
+        <div class="receipt-meta">
+          <div>
+            <span>Receipt</span>
+            <strong>#${escapeHtml(receiptNumber)}</strong>
           </div>
-
-          <div class="receipt-divider" aria-hidden="true"></div>
-          <div class="receipt-items">
-            ${renderReceiptItemRows(sale)}
+          <div>
+            <span>Date</span>
+            <strong>${escapeHtml(formatReceiptDate(paidAt))}</strong>
           </div>
-          <div class="receipt-divider" aria-hidden="true"></div>
-          <div class="receipt-totals">
-            <div class="receipt-line">
-              <span>Subtotal</span>
-              <strong>${formatMoney(totals.subtotal)}</strong>
-            </div>
-            <div class="receipt-line">
-              <span>Tip</span>
-              <strong>${formatMoney(totals.tip)}</strong>
-            </div>
-            <div class="receipt-line final">
-              <span>Total</span>
-              <strong>${formatMoney(totals.total)}</strong>
-            </div>
-          </div>
-          <p class="receipt-thanks">Thank you</p>
-          <div class="receipt-signature">
-            <span>Signature</span>
-            <div class="receipt-signature-frame">
-              ${
-                sale.signatureDataUrl
-                  ? `<img src="${escapeHtml(
-                      sale.signatureDataUrl
-                    )}" alt="Customer signature" />`
-                  : `<div class="receipt-signature-line" aria-hidden="true"></div>`
-              }
-            </div>
+          <div>
+            <span>Customer</span>
             <strong>${escapeHtml(sale.customerName || "Customer")}</strong>
           </div>
-        </section>
-        <div class="receipt-actions">
-          <button class="primary-button" type="button" data-action="new-sale">New Sale</button>
+          <div>
+            <span>Payment</span>
+            <strong>${escapeHtml(paymentType)}</strong>
+          </div>
         </div>
-      </main>
+
+        <div class="receipt-divider" aria-hidden="true"></div>
+        <div class="receipt-items">
+          ${renderReceiptItemRows(sale)}
+        </div>
+        <div class="receipt-divider" aria-hidden="true"></div>
+        <div class="receipt-totals">
+          <div class="receipt-line">
+            <span>Subtotal</span>
+            <strong>${formatMoney(totals.subtotal)}</strong>
+          </div>
+          <div class="receipt-line">
+            <span>Tip</span>
+            <strong>${formatMoney(totals.tip)}</strong>
+          </div>
+          <div class="receipt-line final">
+            <span>Total</span>
+            <strong>${formatMoney(totals.total)}</strong>
+          </div>
+        </div>
+        <p class="receipt-thanks">Thank you</p>
+        <div class="receipt-signature">
+          <span>Signature</span>
+          <div class="receipt-signature-frame">
+            ${
+              sale.signatureDataUrl
+                ? `<img src="${escapeHtml(
+                    sale.signatureDataUrl
+                  )}" alt="Customer signature" />`
+                : `<div class="receipt-signature-line" aria-hidden="true"></div>`
+            }
+          </div>
+          <strong>${escapeHtml(sale.customerName || "Customer")}</strong>
+        </div>
+      </section>
     `;
   }
 
@@ -1033,6 +1191,7 @@
 
     if (action === "open-stores") {
       clearScanTimer();
+      ui.selectedReceiptId = "";
       ui.route = "store-picker";
       render();
       return;
@@ -1042,6 +1201,7 @@
       clearScanTimer();
       data.activeStoreId = button.dataset.storeId;
       saveData();
+      ui.selectedReceiptId = "";
       ui.route = "register";
       ui.error = "";
       render();
@@ -1086,7 +1246,13 @@
     }
 
     if (action === "new-sale") {
+      ui.selectedReceiptId = "";
       beginSaleStart();
+      return;
+    }
+
+    if (action === "open-receipt") {
+      openReceipt(button.dataset.receiptId);
       return;
     }
 
@@ -1104,6 +1270,7 @@
 
     if (action === "cancel-scan" || action === "back-register") {
       clearScanTimer();
+      ui.selectedReceiptId = "";
       ui.route = "register";
       ui.error = "";
       render();
@@ -1581,6 +1748,7 @@
     data.activeStoreId = nextStore.id;
     data.salesByStoreId[nextStore.id] =
       data.salesByStoreId[nextStore.id] || normalizeSale(null);
+    data.receiptsByStoreId[nextStore.id] = data.receiptsByStoreId[nextStore.id] || [];
     clearDraft();
     saveData();
     ui.route = "register";
@@ -1599,6 +1767,7 @@
 
     data.stores = data.stores.filter((store) => store.id !== ui.editingStoreId);
     delete data.salesByStoreId[ui.editingStoreId];
+    delete data.receiptsByStoreId[ui.editingStoreId];
 
     if (!data.stores.some((store) => store.id === data.activeStoreId)) {
       data.activeStoreId = data.stores[0]?.id || null;
@@ -1649,6 +1818,19 @@
     saveData();
     ui.route = "register";
     ui.saleStartCustomerName = "";
+    ui.error = "";
+    render();
+  }
+
+  function openReceipt(receiptId) {
+    const receipt = findCurrentReceipt(receiptId);
+    if (!receipt) {
+      return;
+    }
+
+    clearScanTimer();
+    ui.selectedReceiptId = receipt.id;
+    ui.route = "receipt";
     ui.error = "";
     render();
   }
@@ -1819,6 +2001,7 @@
     sale.receiptNumber = sale.receiptNumber || makeReceiptNumber();
     sale.paidAt = new Date().toISOString();
     if (store) {
+      addReceiptToHistory(store, sale);
       ui.activeSaleStoreIds.delete(store.id);
     }
     saveData();

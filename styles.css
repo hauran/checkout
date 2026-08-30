@@ -133,7 +133,6 @@ button:disabled {
 }
 
 .brand-card,
-.total-card,
 .setup-panel,
 .sale-start-panel,
 .checkout-panel,
@@ -212,29 +211,73 @@ button:disabled {
   color: var(--ink);
 }
 
-.total-card {
-  padding: 18px;
-  margin-bottom: 16px;
-  background: #1f2423;
-  color: #fff;
+.store-start-button {
+  width: 100%;
+  min-height: 72px;
+  margin: 0 0 18px;
+  font-size: 1.25rem;
 }
 
-.total-label {
-  display: block;
-  margin-bottom: 4px;
-  color: #d7ded9;
-  font-size: 0.9rem;
-  font-weight: 700;
+.sales-history {
+  display: grid;
+  gap: 10px;
 }
 
-.total-value {
-  display: block;
-  min-height: 58px;
-  font-size: clamp(2.2rem, 14vw, 4rem);
-  font-weight: 900;
-  line-height: 1;
-  letter-spacing: 0;
+.sales-history h2 {
+  margin: 0;
+  color: var(--muted);
+  font-size: 1.1rem;
+  line-height: 1.2;
+}
+
+.sales-list {
+  display: grid;
+  gap: 10px;
+}
+
+.past-sale-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  width: 100%;
+  min-height: 72px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ink);
+  text-align: left;
+}
+
+.past-sale-row span {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.past-sale-row strong {
+  font-size: 1.05rem;
+  line-height: 1.15;
   overflow-wrap: anywhere;
+}
+
+.past-sale-row small {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.past-sale-empty {
+  display: grid;
+  min-height: 74px;
+  place-items: center;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  background: #fffdf8;
+  color: var(--muted);
+  font-weight: 800;
 }
 
 .cart-list {
