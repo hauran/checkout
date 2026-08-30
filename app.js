@@ -272,6 +272,12 @@
   document.addEventListener("keydown", handleKeyDown);
   document.addEventListener("pointerdown", primeAudio, { passive: true });
 
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("./sw.js").catch(() => {});
+    });
+  }
+
   function loadData() {
     let parsed = null;
 
