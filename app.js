@@ -6,8 +6,8 @@
   const OPTIONAL_PRICE_PRESETS = [2, 15, 30, 50];
   const DEFAULT_EMOJI = "🛒";
   const DEFAULT_THEME_ID = "candy";
-  const SCAN_SOUND_DELAY_MS = 2500;
-  const SCAN_DURATION_MS = 4000;
+  const SCAN_SOUND_DELAY_MS = 1500;
+  const SCAN_DURATION_MS = 3000;
   const RECEIPT_HISTORY_LIMIT = 50;
   const SOUND_FILES = {
     scan: "assets/scan-beep.mp3",
