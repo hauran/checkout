@@ -262,6 +262,13 @@
     error: "",
     scanTimer: null,
     activeSaleStoreIds: new Set(),
+    signaturePad: {
+      drawing: false,
+      hasInk: false,
+      pointerId: null,
+      lastX: 0,
+      lastY: 0,
+    },
   };
   let emojiOptionsCache = null;
   let audioContext = null;
@@ -274,6 +281,10 @@
   document.addEventListener("input", handleInput);
   document.addEventListener("keydown", handleKeyDown);
   document.addEventListener("pointerdown", primeAudio, { passive: true });
+  document.addEventListener("pointerdown", handleSignaturePointerDown);
+  document.addEventListener("pointermove", handleSignaturePointerMove);
+  document.addEventListener("pointerup", handleSignaturePointerEnd);
+  document.addEventListener("pointercancel", handleSignaturePointerEnd);
 
   if ("serviceWorker" in navigator) {
     window.addEventListener("load", () => {
@@ -351,6 +362,8 @@
       tip: roundMoney(sale?.tip || 0),
       paid: sale?.paid === true,
       paymentType: typeof sale?.paymentType === "string" ? sale.paymentType : "",
+      signatureDataUrl:
+        typeof sale?.signatureDataUrl === "string" ? sale.signatureDataUrl : "",
     };
   }
 
@@ -460,6 +473,11 @@
 
     if (route === "checkout") {
       renderCheckout();
+      return;
+    }
+
+    if (route === "signature") {
+      renderSignature();
       return;
     }
 
@@ -862,6 +880,45 @@
     `;
   }
 
+  function renderSignature() {
+    const sale = currentSale();
+    const totals = calculateTotals(sale);
+
+    app.innerHTML = `
+      <main class="screen">
+        <header class="topbar">
+          <button class="text-button" type="button" data-action="back-checkout">Back</button>
+          <h1>Signature</h1>
+          <span class="fake-badge">${escapeHtml(sale.paymentType || "Payment")}</span>
+        </header>
+        <section class="signature-panel">
+          <div>
+            <h1>Sign</h1>
+            <p class="muted">${escapeHtml(sale.customerName || "Customer")}</p>
+          </div>
+          <div class="signature-summary">
+            <div>
+              <span>Total</span>
+              <strong>${formatMoney(totals.total)}</strong>
+            </div>
+            <div>
+              <span>Payment</span>
+              <strong>${escapeHtml(sale.paymentType || "Payment")}</strong>
+            </div>
+          </div>
+          <canvas class="signature-pad" data-signature-pad aria-label="Customer signature"></canvas>
+          <div class="error-message" role="alert">${escapeHtml(ui.error)}</div>
+          <div class="signature-actions">
+            <button class="secondary-button" type="button" data-action="clear-signature">Clear</button>
+            <button class="primary-button" type="button" data-action="accept-signature">Done</button>
+          </div>
+        </section>
+      </main>
+    `;
+
+    prepareSignaturePad();
+  }
+
   function renderApproved() {
     const sale = currentSale();
     const totals = calculateTotals(sale);
@@ -991,6 +1048,13 @@
       return;
     }
 
+    if (action === "back-checkout") {
+      ui.route = "checkout";
+      ui.error = "";
+      render();
+      return;
+    }
+
     if (action === "add-item") {
       addItem(roundMoney(button.dataset.price));
       return;
@@ -1013,6 +1077,16 @@
 
     if (action === "pay") {
       completePayment(button.dataset.paymentType || "Payment");
+      return;
+    }
+
+    if (action === "clear-signature") {
+      clearSignaturePad();
+      return;
+    }
+
+    if (action === "accept-signature") {
+      acceptSignature();
     }
   }
 
@@ -1596,15 +1670,173 @@
       return;
     }
 
-    sale.paid = true;
+    sale.paid = false;
     sale.paymentType = paymentType;
+    sale.signatureDataUrl = "";
+    saveData();
+    playPaymentSound();
+    ui.error = "";
+    ui.route = "signature";
+    render();
+  }
+
+  function prepareSignaturePad() {
+    ui.signaturePad = {
+      drawing: false,
+      hasInk: false,
+      pointerId: null,
+      lastX: 0,
+      lastY: 0,
+    };
+
+    const canvas = app.querySelector("[data-signature-pad]");
+    if (!canvas || typeof canvas.getContext !== "function") {
+      return;
+    }
+
+    const ratio = Math.max(window.devicePixelRatio || 1, 1);
+    const rect = canvas.getBoundingClientRect();
+    const width = Math.max(Math.round((rect.width || canvas.clientWidth || 300) * ratio), 1);
+    const height = Math.max(Math.round((rect.height || canvas.clientHeight || 180) * ratio), 1);
+    canvas.width = width;
+    canvas.height = height;
+
+    const context = canvas.getContext("2d");
+    context.setTransform(ratio, 0, 0, ratio, 0, 0);
+    context.clearRect(0, 0, width / ratio, height / ratio);
+    context.fillStyle = "#fff";
+    context.fillRect(0, 0, width / ratio, height / ratio);
+    configureSignatureContext(context);
+  }
+
+  function clearSignaturePad() {
+    ui.error = "";
+    prepareSignaturePad();
+  }
+
+  function acceptSignature() {
+    const sale = currentSale();
+    const store = currentStore();
+    const canvas = app.querySelector("[data-signature-pad]");
+
+    if (!ui.signaturePad.hasInk || !canvas) {
+      ui.error = "Signature is required.";
+      renderSignature();
+      return;
+    }
+
+    sale.signatureDataUrl =
+      typeof canvas.toDataURL === "function" ? canvas.toDataURL("image/png") : "";
+    sale.paid = true;
     if (store) {
       ui.activeSaleStoreIds.delete(store.id);
     }
     saveData();
-    playPaymentSound();
+    ui.error = "";
     ui.route = "approved";
     render();
+  }
+
+  function handleSignaturePointerDown(event) {
+    const canvas = event.target.closest?.("[data-signature-pad]");
+    if (ui.route !== "signature" || !canvas) {
+      return;
+    }
+
+    event.preventDefault();
+    const point = getSignaturePoint(canvas, event);
+    ui.signaturePad = {
+      drawing: true,
+      hasInk: true,
+      pointerId: event.pointerId,
+      lastX: point.x,
+      lastY: point.y,
+    };
+    canvas.setPointerCapture?.(event.pointerId);
+    drawSignatureDot(canvas, point);
+    ui.error = "";
+  }
+
+  function handleSignaturePointerMove(event) {
+    if (
+      ui.route !== "signature" ||
+      !ui.signaturePad.drawing ||
+      ui.signaturePad.pointerId !== event.pointerId
+    ) {
+      return;
+    }
+
+    const canvas = app.querySelector("[data-signature-pad]");
+    if (!canvas) {
+      return;
+    }
+
+    event.preventDefault();
+    const point = getSignaturePoint(canvas, event);
+    drawSignatureLine(
+      canvas,
+      { x: ui.signaturePad.lastX, y: ui.signaturePad.lastY },
+      point
+    );
+    ui.signaturePad.lastX = point.x;
+    ui.signaturePad.lastY = point.y;
+    ui.signaturePad.hasInk = true;
+  }
+
+  function handleSignaturePointerEnd(event) {
+    if (
+      ui.route !== "signature" ||
+      !ui.signaturePad.drawing ||
+      ui.signaturePad.pointerId !== event.pointerId
+    ) {
+      return;
+    }
+
+    const canvas = app.querySelector("[data-signature-pad]");
+    canvas?.releasePointerCapture?.(event.pointerId);
+    ui.signaturePad.drawing = false;
+    ui.signaturePad.pointerId = null;
+  }
+
+  function getSignaturePoint(canvas, event) {
+    const rect = canvas.getBoundingClientRect();
+    return {
+      x: event.clientX - rect.left,
+      y: event.clientY - rect.top,
+    };
+  }
+
+  function drawSignatureDot(canvas, point) {
+    const context = canvas.getContext("2d");
+    if (!context) {
+      return;
+    }
+
+    configureSignatureContext(context);
+    context.beginPath();
+    context.arc(point.x, point.y, 2, 0, Math.PI * 2);
+    context.fillStyle = "#202124";
+    context.fill();
+  }
+
+  function drawSignatureLine(canvas, from, to) {
+    const context = canvas.getContext("2d");
+    if (!context) {
+      return;
+    }
+
+    configureSignatureContext(context);
+    context.beginPath();
+    context.moveTo(from.x, from.y);
+    context.lineTo(to.x, to.y);
+    context.stroke();
+  }
+
+  function configureSignatureContext(context) {
+    context.lineCap = "round";
+    context.lineJoin = "round";
+    context.lineWidth = 4;
+    context.strokeStyle = "#202124";
   }
 
   function syncCheckoutCustomerName() {
