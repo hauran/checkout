@@ -364,6 +364,9 @@
       paymentType: typeof sale?.paymentType === "string" ? sale.paymentType : "",
       signatureDataUrl:
         typeof sale?.signatureDataUrl === "string" ? sale.signatureDataUrl : "",
+      receiptNumber:
+        typeof sale?.receiptNumber === "string" ? sale.receiptNumber : "",
+      paidAt: typeof sale?.paidAt === "string" ? sale.paidAt : "",
     };
   }
 
@@ -921,28 +924,100 @@
 
   function renderApproved() {
     const sale = currentSale();
+    const store = currentStore();
     const totals = calculateTotals(sale);
     const paymentType = sale.paymentType || "Payment";
+    const receiptNumber = sale.receiptNumber || "000000";
+    const paidAt = sale.paidAt || new Date().toISOString();
 
     app.innerHTML = `
-      <main class="screen">
-        <section class="approved-panel">
-          <div class="approved-mark" aria-hidden="true">✓</div>
-          <div>
-            <h1>Approved</h1>
-            <p class="muted">${escapeHtml(paymentType)}</p>
-            ${
-              sale.customerName
-                ? `<p class="muted">Customer: ${escapeHtml(sale.customerName)}</p>`
-                : ""
-            }
+      <main class="screen receipt-screen">
+        <section class="receipt-paper" aria-label="Receipt">
+          <div class="receipt-top">
+            <div class="receipt-logo" aria-hidden="true">${escapeHtml(
+              store?.emojiLogo || DEFAULT_EMOJI
+            )}</div>
+            <h1>${escapeHtml(store?.name || "Checkout")}</h1>
+            ${store?.description ? `<p>${escapeHtml(store.description)}</p>` : ""}
           </div>
-          <div class="approved-total">${formatMoney(totals.total)}</div>
-          <button class="primary-button" type="button" data-action="new-sale">New Sale</button>
-          <button class="secondary-button" type="button" data-action="back-register">Receipt</button>
+
+          <div class="receipt-meta">
+            <div>
+              <span>Receipt</span>
+              <strong>#${escapeHtml(receiptNumber)}</strong>
+            </div>
+            <div>
+              <span>Date</span>
+              <strong>${escapeHtml(formatReceiptDate(paidAt))}</strong>
+            </div>
+            <div>
+              <span>Customer</span>
+              <strong>${escapeHtml(sale.customerName || "Customer")}</strong>
+            </div>
+            <div>
+              <span>Payment</span>
+              <strong>${escapeHtml(paymentType)}</strong>
+            </div>
+          </div>
+
+          <div class="receipt-divider" aria-hidden="true"></div>
+          <div class="receipt-items">
+            ${renderReceiptItemRows(sale)}
+          </div>
+          <div class="receipt-divider" aria-hidden="true"></div>
+          <div class="receipt-totals">
+            <div class="receipt-line">
+              <span>Subtotal</span>
+              <strong>${formatMoney(totals.subtotal)}</strong>
+            </div>
+            <div class="receipt-line">
+              <span>Tip</span>
+              <strong>${formatMoney(totals.tip)}</strong>
+            </div>
+            <div class="receipt-line final">
+              <span>Total</span>
+              <strong>${formatMoney(totals.total)}</strong>
+            </div>
+          </div>
+          <p class="receipt-thanks">Thank you</p>
+          <div class="receipt-signature">
+            <span>Signature</span>
+            <div class="receipt-signature-frame">
+              ${
+                sale.signatureDataUrl
+                  ? `<img src="${escapeHtml(
+                      sale.signatureDataUrl
+                    )}" alt="Customer signature" />`
+                  : `<div class="receipt-signature-line" aria-hidden="true"></div>`
+              }
+            </div>
+            <strong>${escapeHtml(sale.customerName || "Customer")}</strong>
+          </div>
         </section>
+        <div class="receipt-actions">
+          <button class="primary-button" type="button" data-action="new-sale">New Sale</button>
+        </div>
       </main>
     `;
+  }
+
+  function renderReceiptItemRows(sale) {
+    if (!sale.items.length) {
+      return `<div class="receipt-row"><span>No items</span><strong>${formatMoney(
+        0
+      )}</strong></div>`;
+    }
+
+    return sale.items
+      .map(
+        (item, index) => `
+          <div class="receipt-row">
+            <span>Item ${index + 1}</span>
+            <strong>${formatMoney(item.price)}</strong>
+          </div>
+        `
+      )
+      .join("");
   }
 
   function handleClick(event) {
@@ -1673,6 +1748,8 @@
     sale.paid = false;
     sale.paymentType = paymentType;
     sale.signatureDataUrl = "";
+    sale.receiptNumber = "";
+    sale.paidAt = "";
     saveData();
     playPaymentSound();
     ui.error = "";
@@ -1728,6 +1805,8 @@
     sale.signatureDataUrl =
       typeof canvas.toDataURL === "function" ? canvas.toDataURL("image/png") : "";
     sale.paid = true;
+    sale.receiptNumber = sale.receiptNumber || makeReceiptNumber();
+    sale.paidAt = new Date().toISOString();
     if (store) {
       ui.activeSaleStoreIds.delete(store.id);
     }
@@ -2003,6 +2082,21 @@
     });
   }
 
+  function formatReceiptDate(value) {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      return "";
+    }
+
+    return date.toLocaleString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    });
+  }
+
   function roundMoney(value) {
     const numeric = Number(String(value).replace(/[^0-9.]/g, ""));
     if (!Number.isFinite(numeric) || numeric < 0) {
@@ -2027,6 +2121,10 @@
     }
 
     return `id-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  }
+
+  function makeReceiptNumber() {
+    return Date.now().toString().slice(-6);
   }
 
   function escapeHtml(value) {
