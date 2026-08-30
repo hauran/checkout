@@ -646,7 +646,7 @@
         </section>
       </main>
       <nav class="bottom-actions" aria-label="Sale actions">
-        <div class="bottom-actions-inner action-count-${canCheckout ? 3 : canScan ? 2 : 1}">
+        <div class="bottom-actions-inner action-count-${canCheckout ? 2 : 1}">
           ${renderSaleActionButtons(canScan, canCheckout)}
         </div>
       </nav>
@@ -659,7 +659,6 @@
     }
 
     return `
-      <button class="secondary-button" type="button" data-action="new-sale">New Sale</button>
       <button class="primary-button" type="button" data-action="scan-item">Scan Item</button>
       ${
         canCheckout
@@ -705,7 +704,6 @@
             <div class="logo-mark" aria-hidden="true">${escapeHtml(store.emojiLogo)}</div>
             <div>
               <h1>Start Sale</h1>
-              <p class="muted">Customer name is optional</p>
             </div>
           </div>
           <form class="form-grid" data-form="sale-start">
@@ -717,12 +715,13 @@
                 value="${escapeHtml(ui.saleStartCustomerName)}"
                 autocomplete="off"
                 maxlength="34"
-                placeholder="No name needed"
+                placeholder="Customer name"
+                required
               />
             </label>
+            <div class="error-message" role="alert">${escapeHtml(ui.error)}</div>
             <div class="form-actions">
               <button class="primary-button" type="submit">Start Sale</button>
-              <button class="secondary-button" type="button" data-action="skip-customer-name">Skip</button>
             </div>
           </form>
         </section>
@@ -810,9 +809,11 @@
               value="${escapeHtml(sale.customerName || "")}"
               autocomplete="off"
               maxlength="34"
-              placeholder="No name needed"
+              placeholder="Customer name"
+              required
             />
           </label>
+          <div class="error-message" role="alert">${escapeHtml(ui.error)}</div>
           <div class="checkout-totals">
             <div class="total-line">
               <span>Subtotal</span>
@@ -955,11 +956,6 @@
       return;
     }
 
-    if (action === "skip-customer-name") {
-      startNewSale("");
-      return;
-    }
-
     if (action === "scan-item") {
       startScan();
       return;
@@ -1040,12 +1036,18 @@
 
     if (event.target.name === "customerName" && ui.route === "sale-start") {
       ui.saleStartCustomerName = event.target.value;
+      if (event.target.value.trim()) {
+        ui.error = "";
+      }
       return;
     }
 
     if (event.target.matches("[data-checkout-customer-name]")) {
       const sale = currentSale();
       sale.customerName = event.target.value.trim();
+      if (sale.customerName) {
+        ui.error = "";
+      }
       sale.paid = false;
       sale.paymentType = "";
       saveData();
@@ -1473,8 +1475,17 @@
       return;
     }
 
+    const nextCustomerName = String(customerName || "").trim();
+    if (!nextCustomerName) {
+      ui.saleStartCustomerName = "";
+      ui.error = "Customer name is required.";
+      ui.route = "sale-start";
+      render();
+      return;
+    }
+
     data.salesByStoreId[store.id] = normalizeSale({
-      customerName: String(customerName || "").trim(),
+      customerName: nextCustomerName,
     });
     ui.activeSaleStoreIds.add(store.id);
     saveData();
@@ -1570,6 +1581,12 @@
     if (!isSaleStarted(store, sale) || !sale.items.length) {
       ui.route = "register";
       render();
+      return;
+    }
+
+    if (!sale.customerName) {
+      ui.error = "Customer name is required.";
+      renderCheckout();
       return;
     }
 
