@@ -1045,7 +1045,13 @@
           <div class="error-message" role="alert">${escapeHtml(ui.error)}</div>
           <div class="signature-actions">
             <button class="secondary-button" type="button" data-action="clear-signature">Clear</button>
-            <button class="primary-button" type="button" data-action="accept-signature">Done</button>
+            <button
+              class="primary-button"
+              type="button"
+              data-action="accept-signature"
+              data-accept-signature
+              disabled
+            >Done</button>
           </div>
         </section>
       </main>
@@ -2016,6 +2022,8 @@
       lastY: 0,
     };
 
+    updateSignatureDoneButton();
+
     const canvas = app.querySelector("[data-signature-pad]");
     if (!canvas || typeof canvas.getContext !== "function") {
       return;
@@ -2034,6 +2042,7 @@
     context.fillStyle = "#fff";
     context.fillRect(0, 0, width / ratio, height / ratio);
     configureSignatureContext(context);
+    updateSignatureDoneButton();
   }
 
   function clearSignaturePad() {
@@ -2086,6 +2095,7 @@
     canvas.setPointerCapture?.(event.pointerId);
     drawSignatureDot(canvas, point);
     ui.error = "";
+    updateSignatureDoneButton();
   }
 
   function handleSignaturePointerMove(event) {
@@ -2112,6 +2122,7 @@
     ui.signaturePad.lastX = point.x;
     ui.signaturePad.lastY = point.y;
     ui.signaturePad.hasInk = true;
+    updateSignatureDoneButton();
   }
 
   function handleSignaturePointerEnd(event) {
@@ -2168,6 +2179,13 @@
     context.lineJoin = "round";
     context.lineWidth = 4;
     context.strokeStyle = "#202124";
+  }
+
+  function updateSignatureDoneButton() {
+    const button = app.querySelector("[data-accept-signature]");
+    if (button) {
+      button.disabled = !ui.signaturePad.hasInk;
+    }
   }
 
   function syncCheckoutCustomerName() {

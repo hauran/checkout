@@ -1,4 +1,4 @@
-const CACHE_NAME = "checkout-pwa-v14";
+const CACHE_NAME = "checkout-pwa-v15";
 const APP_ASSETS = [
   "./",
   "./index.html",
