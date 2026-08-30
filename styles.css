@@ -183,6 +183,37 @@ button:disabled {
   font-size: 1.45rem;
 }
 
+.store-font-bold {
+  font-family:
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+  font-weight: 900;
+}
+
+.store-font-rounded {
+  font-family:
+    "Arial Rounded MT Bold", "Trebuchet MS", ui-sans-serif, system-ui,
+    sans-serif;
+  font-weight: 900;
+}
+
+.store-font-playful {
+  font-family: "Comic Sans MS", "Comic Sans", "Marker Felt", cursive;
+  font-weight: 900;
+}
+
+.store-font-fancy {
+  font-family: Georgia, "Times New Roman", ui-serif, serif;
+  font-weight: 900;
+}
+
+.store-font-receipt {
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+    monospace;
+  font-weight: 900;
+}
+
 .setup-title {
   font-size: 1.75rem;
   white-space: nowrap;
@@ -427,6 +458,37 @@ textarea:focus {
 .emoji-field {
   display: grid;
   gap: 10px;
+}
+
+.font-field {
+  display: grid;
+  gap: 10px;
+}
+
+.font-picker {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.font-choice {
+  min-width: 0;
+  min-height: 46px;
+  padding: 0 8px;
+  border: 1px solid #cfc5b3;
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ink);
+  cursor: pointer;
+  font-size: 0.95rem;
+  line-height: 1.1;
+}
+
+.font-choice.active {
+  border-color: var(--green);
+  background: var(--green);
+  color: #fff;
+  box-shadow: 0 0 0 3px rgba(22, 133, 107, 0.15);
 }
 
 .emoji-picker {
