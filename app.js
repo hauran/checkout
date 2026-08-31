@@ -6,17 +6,9 @@
   const OPTIONAL_PRICE_PRESETS = [2, 15, 30, 50];
   const DEFAULT_EMOJI = "🛒";
   const DEFAULT_THEME_ID = "candy";
-  const DEFAULT_STORE_FONT_ID = "bold";
   const SCAN_SOUND_DELAY_MS = 1000;
   const SCAN_DURATION_MS = 2500;
   const RECEIPT_HISTORY_LIMIT = 50;
-  const STORE_FONTS = [
-    { id: "bold", name: "Bold" },
-    { id: "rounded", name: "Rounded" },
-    { id: "playful", name: "Playful" },
-    { id: "fancy", name: "Fancy" },
-    { id: "receipt", name: "Receipt" },
-  ];
   const SOUND_FILES = {
     scan: "assets/scan-beep.mp3",
     payment: "assets/cash-register.mp3",
@@ -369,7 +361,6 @@
       description: String(store.description || "").trim(),
       emojiLogo: String(store.emojiLogo || DEFAULT_EMOJI).trim() || DEFAULT_EMOJI,
       themeId: DEFAULT_THEME_ID,
-      fontId: normalizeStoreFontId(store.fontId),
       priceOptions: uniquePrices(priceOptions.length ? priceOptions : DEFAULT_PRICES),
     };
   }
@@ -541,17 +532,6 @@
       .join("; ");
   }
 
-  function normalizeStoreFontId(fontId) {
-    const nextFontId = String(fontId || "").trim();
-    return STORE_FONTS.some((font) => font.id === nextFontId)
-      ? nextFontId
-      : DEFAULT_STORE_FONT_ID;
-  }
-
-  function storeFontClass(store) {
-    return `store-font-${normalizeStoreFontId(store?.fontId || store?.id)}`;
-  }
-
   function render() {
     const route = data.stores.length === 0 ? "store-form" : ui.route;
 
@@ -631,7 +611,7 @@
       <article class="store-card" style="${themeStyleAttribute(store.themeId)}">
         <div class="logo-mark" aria-hidden="true">${escapeHtml(store.emojiLogo)}</div>
         <div>
-          <h2 class="${storeFontClass(store)}">${escapeHtml(store.name)}</h2>
+          <h2>${escapeHtml(store.name)}</h2>
           ${store.description ? `<p>${escapeHtml(store.description)}</p>` : ""}
           <div class="store-meta">
             ${isActive ? `<span class="pill active">Active</span>` : ""}
@@ -677,15 +657,9 @@
           <form class="form-grid" data-form="store">
             <label>
               Name
-              <input
-                class="${storeFontClass(draft)}"
-                name="name"
-                type="text"
-                value="${escapeHtml(draft.name)}"
-                autocomplete="off"
-                maxlength="34"
-                required
-              />
+              <input name="name" type="text" value="${escapeHtml(
+                draft.name
+              )}" autocomplete="off" maxlength="34" required />
             </label>
             <label>
               Description
@@ -693,12 +667,6 @@
                 draft.description
               )}</textarea>
             </label>
-            <div class="font-field">
-              <label>Store Name Font</label>
-              <div class="font-picker" role="radiogroup" aria-label="Store name font">
-                ${renderFontChoices(draft.fontId)}
-              </div>
-            </div>
             <div class="emoji-field">
               <label>Logo</label>
               <input
@@ -768,7 +736,7 @@
         <section class="brand-card">
           <div class="logo-mark" aria-hidden="true">${escapeHtml(store.emojiLogo)}</div>
           <div>
-            <h2 class="${storeFontClass(store)}">${escapeHtml(store.name)}</h2>
+            <h2>${escapeHtml(store.name)}</h2>
             ${store.description ? `<p>${escapeHtml(store.description)}</p>` : ""}
           </div>
         </section>
@@ -950,12 +918,9 @@
           <span class="fake-badge">Scanned</span>
         </header>
         <section class="price-panel">
-          <h1>
-            ${escapeHtml(store?.emojiLogo || DEFAULT_EMOJI)}
-            <span class="${storeFontClass(store)}">${escapeHtml(
-              store?.name || "Store"
-            )}</span>
-          </h1>
+          <h1>${escapeHtml(store?.emojiLogo || DEFAULT_EMOJI)} ${escapeHtml(
+            store?.name || "Store"
+          )}</h1>
           <div class="price-grid">
             ${(store?.priceOptions || DEFAULT_PRICES)
               .map(
@@ -1179,9 +1144,7 @@
           <div class="receipt-logo" aria-hidden="true">${escapeHtml(
             store?.emojiLogo || DEFAULT_EMOJI
           )}</div>
-          <h1 class="${storeFontClass(store)}">${escapeHtml(
-            store?.name || "Checkout"
-          )}</h1>
+          <h1>${escapeHtml(store?.name || "Checkout")}</h1>
           ${store?.description ? `<p>${escapeHtml(store.description)}</p>` : ""}
         </div>
 
@@ -1329,11 +1292,6 @@
 
     if (action === "select-emoji") {
       selectDraftEmoji(button.dataset.emoji);
-      return;
-    }
-
-    if (action === "select-font") {
-      selectDraftFont(button.dataset.fontId);
       return;
     }
 
@@ -1572,25 +1530,6 @@
     `;
   }
 
-  function renderFontChoices(selectedFontId) {
-    const normalizedFontId = normalizeStoreFontId(selectedFontId);
-
-    return STORE_FONTS.map((font) => {
-      const isSelected = font.id === normalizedFontId;
-
-      return `
-        <button
-          class="font-choice ${storeFontClass(font)} ${isSelected ? "active" : ""}"
-          type="button"
-          data-action="select-font"
-          data-font-id="${escapeHtml(font.id)}"
-          aria-checked="${isSelected ? "true" : "false"}"
-          role="radio"
-        >${escapeHtml(font.name)}</button>
-      `;
-    }).join("");
-  }
-
   function updateEmojiPicker() {
     const picker = app.querySelector(".emoji-picker");
 
@@ -1749,17 +1688,6 @@
     renderStoreForm();
   }
 
-  function selectDraftFont(fontId) {
-    if (!ui.draftStore) {
-      return;
-    }
-
-    syncDraftFromForm();
-    ui.draftStore.fontId = normalizeStoreFontId(fontId);
-    ui.error = "";
-    renderStoreForm();
-  }
-
   function beginDraftStore(storeId, options = {}) {
     const store = data.stores.find((candidate) => candidate.id === storeId);
 
@@ -1772,7 +1700,6 @@
           description: store.description,
           emojiLogo: store.emojiLogo,
           themeId: DEFAULT_THEME_ID,
-          fontId: normalizeStoreFontId(store.fontId),
           priceOptions: [...store.priceOptions],
         }
       : {
@@ -1781,7 +1708,6 @@
           description: "",
           emojiLogo: DEFAULT_EMOJI,
           themeId: DEFAULT_THEME_ID,
-          fontId: DEFAULT_STORE_FONT_ID,
           priceOptions: [...DEFAULT_PRICES],
         };
     ui.error = "";
@@ -1873,7 +1799,6 @@
       description: draft.description,
       emojiLogo: draft.emojiLogo || DEFAULT_EMOJI,
       themeId: DEFAULT_THEME_ID,
-      fontId: normalizeStoreFontId(draft.fontId),
       priceOptions: uniquePrices(draft.priceOptions),
     };
 
