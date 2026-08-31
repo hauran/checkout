@@ -292,7 +292,6 @@
   document.addEventListener("click", handleClick);
   document.addEventListener("submit", handleSubmit);
   document.addEventListener("input", handleInput);
-  document.addEventListener("change", handleChange);
   document.addEventListener("keydown", handleKeyDown);
   document.addEventListener("pointerdown", primeAudio, { passive: true });
   document.addEventListener("pointerdown", handleSignaturePointerDown);
@@ -695,20 +694,10 @@
               )}</textarea>
             </label>
             <div class="font-field">
-              <label>
-                Store Name Font
-                <select
-                  class="font-select ${storeFontClass(draft)}"
-                  name="fontId"
-                  data-font-picker
-                >
-                  ${renderFontOptions(draft.fontId)}
-                </select>
-              </label>
-              <div
-                class="store-name-font-preview ${storeFontClass(draft)}"
-                data-store-name-preview
-              >${escapeHtml(draft.name || "Store Name")}</div>
+              <label>Store Name Font</label>
+              <div class="font-picker" role="radiogroup" aria-label="Store name font">
+                ${renderFontChoices(draft.fontId)}
+              </div>
             </div>
             <div class="emoji-field">
               <label>Logo</label>
@@ -1343,6 +1332,11 @@
       return;
     }
 
+    if (action === "select-font") {
+      selectDraftFont(button.dataset.fontId);
+      return;
+    }
+
     if (action === "new-sale") {
       ui.selectedReceiptId = "";
       beginSaleStart();
@@ -1455,15 +1449,6 @@
   }
 
   function handleInput(event) {
-    if (
-      ui.route === "store-form" &&
-      (event.target.name === "name" || event.target.name === "description")
-    ) {
-      syncDraftFromForm();
-      updateStoreNamePreviewText();
-      return;
-    }
-
     if (event.target.matches("[data-emoji-filter]") && ui.route === "store-form") {
       syncDraftFromForm();
       ui.emojiFilter = event.target.value;
@@ -1508,15 +1493,6 @@
       sale.paymentType = "";
       saveData();
       updateCheckoutTotals();
-    }
-  }
-
-  function handleChange(event) {
-    if (event.target.matches("[data-font-picker]") && ui.route === "store-form") {
-      syncDraftFromForm();
-      ui.draftStore.fontId = normalizeStoreFontId(event.target.value);
-      ui.error = "";
-      renderStoreForm();
     }
   }
 
@@ -1596,25 +1572,23 @@
     `;
   }
 
-  function renderFontOptions(selectedFontId) {
+  function renderFontChoices(selectedFontId) {
     const normalizedFontId = normalizeStoreFontId(selectedFontId);
 
     return STORE_FONTS.map((font) => {
       const isSelected = font.id === normalizedFontId;
 
       return `
-        <option value="${escapeHtml(font.id)}" ${isSelected ? "selected" : ""}>
-          ${escapeHtml(font.name)}
-        </option>
+        <button
+          class="font-choice ${storeFontClass(font)} ${isSelected ? "active" : ""}"
+          type="button"
+          data-action="select-font"
+          data-font-id="${escapeHtml(font.id)}"
+          aria-checked="${isSelected ? "true" : "false"}"
+          role="radio"
+        >${escapeHtml(font.name)}</button>
       `;
     }).join("");
-  }
-
-  function updateStoreNamePreviewText() {
-    const preview = app.querySelector("[data-store-name-preview]");
-    if (preview) {
-      preview.textContent = ui.draftStore?.name || "Store Name";
-    }
   }
 
   function updateEmojiPicker() {
@@ -1775,6 +1749,17 @@
     renderStoreForm();
   }
 
+  function selectDraftFont(fontId) {
+    if (!ui.draftStore) {
+      return;
+    }
+
+    syncDraftFromForm();
+    ui.draftStore.fontId = normalizeStoreFontId(fontId);
+    ui.error = "";
+    renderStoreForm();
+  }
+
   function beginDraftStore(storeId, options = {}) {
     const store = data.stores.find((candidate) => candidate.id === storeId);
 
@@ -1822,9 +1807,6 @@
     const fields = new FormData(form);
     ui.draftStore.name = String(fields.get("name") || "").trim();
     ui.draftStore.description = String(fields.get("description") || "").trim();
-    ui.draftStore.fontId = normalizeStoreFontId(
-      fields.get("fontId") || ui.draftStore.fontId
-    );
   }
 
   function addDraftPrice() {
